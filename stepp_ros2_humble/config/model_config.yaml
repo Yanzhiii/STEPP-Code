@@ -1,0 +1,17 @@
+# STEPP model configuration (ROS 2 Humble)
+#
+# This file can be used as a parameter file:
+#   ros2 run stepp_ros2_humble inference_node.py --ros-args \
+#       --params-file $(ros2 pkg prefix stepp_ros2_humble)/share/stepp_ros2_humble/config/model_config.yaml
+
+inference_node:
+  ros__parameters:
+    model_path: ""
+    visualize: true
+    ump: false
+    cutoff: 0.45
+
+depth_projection:
+  ros__parameters:
+    camera_type: "zed2"
+    decay_time: 8.0

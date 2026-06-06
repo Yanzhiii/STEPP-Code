@@ -1,0 +1,88 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Build / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+*.whl
+
+# ROS / colcon workspaces
+install/
+log/
+.colcon/
+*.bag
+*.bag.active
+*.db3
+*.mcap
+rosbag2_*/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
+!.env.template
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+*~
+
+# Local assistant / agent state
+.claude/
+.codex/
+.continue/
+
+# Model checkpoints (large binary files)
+*.pth
+*.ckpt
+*.pt
+checkpoints/
+
+# Run outputs
+results/
+wandb/
+lightning_logs/
+neptune/
+mlruns/
+runs/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets / local credentials
+*.pem
+*.key
+*.token
+*.secret
+id_rsa*
+id_ed25519*
+credentials*
+secrets/
+local_settings.*
+*.local.yaml
+*.local.yml
+*.local.json
+
+# OS
+.DS_Store
+Thumbs.db
