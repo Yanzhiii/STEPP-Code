@@ -4,7 +4,7 @@ STEPP Inference Node — ROS 2 Humble port.
 
 Subscribes to /camera/color/image_raw/compressed (CompressedImage),
 runs DINOv2 + SLIC + MLP traversability inference,
-publishes traversability cost as Float32Stamped and overlay Image.
+publishes traversability cost, traversability overlay, and SLIC debug images.
 """
 
 import rclpy
@@ -110,6 +110,11 @@ class InferenceNode(Node):
             '/inference/visu_traversability_post',
             reliable_qos
         )
+        self.visu_segmentation_pub = self.create_publisher(
+            Image,
+            '/inference/visu_segmentation',
+            reliable_qos
+        )
 
         # ------------------------------------------------------------
         # Device & threshold
@@ -210,7 +215,7 @@ class InferenceNode(Node):
                     cv_image = CV_BRIDGE.imgmsg_to_cv2(image_data, desired_encoding="bgr8")
 
                 try:
-                    traversability_array, inference_img = self.inference_image(cv_image)
+                    traversability_array, inference_img, segmentation_img = self.inference_image(cv_image)
                 except Exception as e:
                     self.get_logger().error(f'Inference error: {e}')
                     self.processing = False
@@ -221,6 +226,10 @@ class InferenceNode(Node):
                 if self.visualize and inference_img is not None:
                     self.visu_traversability_pub.publish(
                         CV_BRIDGE.cv2_to_imgmsg(np.array(inference_img), "rgb8")
+                    )
+                if self.visualize and segmentation_img is not None:
+                    self.visu_segmentation_pub.publish(
+                        CV_BRIDGE.cv2_to_imgmsg(segmentation_img, "rgb8")
                     )
 
             self.processing = False
@@ -243,6 +252,10 @@ class InferenceNode(Node):
 
         # SLIC segmentation
         segments, segmented_image = self.slic.Slic_segmentation_for_all_pixels_torch(img)
+        segmentation_debug = None
+        if self.visualize:
+            segment_labels = segmented_image.cpu().detach().numpy().astype(np.int32)
+            segmentation_debug = self.make_segmentation_debug_image(img, segment_labels, (W, H))
 
         # Resize segment map to DINO feature resolution
         resized_segmented_img, new_segment_dict = self.slic.make_masks_smaller_torch(
@@ -273,10 +286,12 @@ class InferenceNode(Node):
 
         # Clamp and normalize
         segmented_image = np.where(segmented_image > 10, 10, segmented_image)
-        segmented_image = (
-            (segmented_image - segmented_image.min())
-            / (segmented_image.max() - segmented_image.min())
-        ) * self.cutoff
+        min_loss = segmented_image.min()
+        loss_range = segmented_image.max() - min_loss
+        if loss_range < 1e-8:
+            segmented_image = np.zeros_like(segmented_image)
+        else:
+            segmented_image = ((segmented_image - min_loss) / loss_range) * self.cutoff
 
         segmented_image = np.where(
             segmented_image > self.threshold, self.threshold, segmented_image
@@ -319,10 +334,24 @@ class InferenceNode(Node):
             img_rgb = img_rgb.resize((W, H))
             segmented_image = cv2.resize(segmented_image, (W, H))
 
-            return segmented_image, img_rgb
+            return segmented_image, img_rgb, segmentation_debug
         else:
             segmented_image = cv2.resize(segmented_image, (W, H))
-            return segmented_image, None
+            return segmented_image, None, None
+
+    def make_segmentation_debug_image(self, rgb_image, segment_labels, output_size):
+        boundaries = np.zeros(segment_labels.shape, dtype=bool)
+        boundaries[:, 1:] |= segment_labels[:, 1:] != segment_labels[:, :-1]
+        boundaries[1:, :] |= segment_labels[1:, :] != segment_labels[:-1, :]
+        boundaries = cv2.dilate(
+            (boundaries.astype(np.uint8) * 255),
+            np.ones((2, 2), dtype=np.uint8),
+            iterations=1,
+        ).astype(bool)
+
+        debug_image = rgb_image.copy()
+        debug_image[boundaries] = np.array([255, 0, 255], dtype=np.uint8)
+        return cv2.resize(debug_image, output_size)
 
     # ------------------------------------------------------------------
     # Subscriber callback
